@@ -151,3 +151,64 @@ function dream_is_rate_limited($action_key, $seconds = 30) {
     set_transient($key, 1, $seconds);
     return false;
 }
+// Source - https://stackoverflow.com/a/57837759
+// Posted by Carl Storm, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-09-07, License - CC BY-SA 4.0
+
+    var body = document.getElementsByTagName("BODY")[0];
+    var p1 = document.getElementById('page1');
+    var p2 = document.getElementById('page2');
+    var p3 = document.getElementById('page3');
+    var p4 = document.getElementById('page4');
+    var p5 = document.getElementById('page5');
+    var whatpage = 1;
+    var snap = 50;
+    var i = 0;
+
+// this part is really just to read what "page" you are on if you update the site. if you add more pages you should remember to add it here too.
+window.onload = setcurrentpage;
+function setcurrentpage() {
+    if (window.pageYOffset == p1.offsetTop) {
+        whatpage = 1;
+    } else if (window.pageYOffset == p2.offsetTop) {
+        whatpage = 2;
+    } else if (window.pageYOffset == p3.offsetTop) {
+        whatpage = 3;
+    } else if (window.pageYOffset == p4.offsetTop) {
+        whatpage = 4;
+    } else if (window.pageYOffset == p5.offsetTop) {
+        whatpage = 5;
+    }
+}
+
+// this code is designet to automaticly work with any "id" you have aslong as you give it a variable called p"number" fx p10 as seen above.
+function smoothscroll() {
+    var whatpagenext = whatpage+1;
+    var whatpageprev = whatpage-1;
+    var currentpage = window['p'+whatpage];
+    var nextpage = window['p'+whatpagenext];
+    var prevpage = window['p'+whatpageprev];
+    console.log(currentpage);
+    if (window.pageYOffset > currentpage.offsetTop + snap && window.pageYOffset < nextpage.offsetTop - snap){
+        body.style.overflowY = "hidden";
+        i++
+        window.scrollTo(0, window.pageYOffset+i);
+            if (window.pageYOffset <= nextpage.offsetTop + snap && window.pageYOffset >= nextpage.offsetTop - snap) {
+                i=0;
+                window.scrollTo(0, nextpage.offsetTop);
+                whatpage += 1;
+                body.style.overflowY = "initial";
+            }
+    } else if (window.pageYOffset < currentpage.offsetTop - snap && window.pageYOffset > prevpage.offsetTop + snap){
+            body.style.overflowY = "hidden";
+            i--
+            window.scrollTo(0, window.pageYOffset+i);
+                if (window.pageYOffset >= prevpage.offsetTop - snap && window.pageYOffset <= prevpage.offsetTop + snap) {
+                    i=0;
+                    window.scrollTo(0, prevpage.offsetTop);
+                    whatpage -= 1;
+                    body.style.overflowY = "initial";
+                }
+        }
+}
+
