@@ -276,6 +276,71 @@ themes.forEach((theme, i)=>{
   hero.appendChild(star);
 });
 
+/* ===================== ÉTOILES FILANTES ===================== */
+const shootingLayer = document.createElement('div');
+shootingLayer.className = 'shooting-stars';
+shootingLayer.setAttribute('aria-hidden', 'true');
+hero.appendChild(shootingLayer);
+
+function spawnShootingStar(direction){
+  if(reduceMotion) return;
+  const star = document.createElement('span');
+  star.className = 'shooting-star';
+
+  let x, y, angle;
+  if(direction === 'up-right'){
+    x = 4 + Math.random()*30;        // départ en bas à gauche
+    y = 58 + Math.random()*32;
+    angle = -55 + Math.random()*20;  // trajectoire vers le haut-droit
+  } else {
+    x = 66 + Math.random()*30;       // départ en haut à droite
+    y = 6 + Math.random()*32;
+    angle = 125 + Math.random()*20;  // trajectoire vers le bas-gauche
+  }
+  const dist = 420 + Math.random()*380;
+  const dur = 0.9 + Math.random()*0.5;
+
+  star.style.setProperty('--x', x + '%');
+  star.style.setProperty('--y', y + '%');
+  star.style.setProperty('--angle', angle + 'deg');
+  star.style.setProperty('--dist', dist + 'px');
+  star.style.setProperty('--dur', dur + 's');
+
+  shootingLayer.appendChild(star);
+  const cleanup = () => star.remove();
+  star.addEventListener('animationend', cleanup);
+  setTimeout(cleanup, dur*1000 + 400); // filet de sécurité
+}
+
+// Survol du ciel : étoiles filantes tant que le curseur reste dessus
+let shootingHoverTimer = null;
+hero.addEventListener('mouseenter', ()=>{
+  if(reduceMotion) return;
+  spawnShootingStar(Math.random() < 0.5 ? 'up-right' : 'down-left');
+  shootingHoverTimer = setInterval(()=>{
+    spawnShootingStar(Math.random() < 0.5 ? 'up-right' : 'down-left');
+  }, 1300 + Math.random()*900);
+});
+hero.addEventListener('mouseleave', ()=>{
+  clearInterval(shootingHoverTimer);
+  shootingHoverTimer = null;
+});
+
+// Défilement vers le bas : une étoile part en haut à droite, une autre en bas à gauche
+let lastScrollY = window.scrollY;
+let shootingScrollCooldown = false;
+window.addEventListener('scroll', ()=>{
+  const y = window.scrollY;
+  const goingDown = y > lastScrollY;
+  lastScrollY = y;
+  if(!goingDown || shootingScrollCooldown || reduceMotion) return;
+  if(y > window.innerHeight * 1.15) return; // trop loin du ciel pour que ce soit lisible
+  shootingScrollCooldown = true;
+  spawnShootingStar('up-right');
+  spawnShootingStar('down-left');
+  setTimeout(()=>{ shootingScrollCooldown = false; }, 550);
+}, { passive:true });
+
 /* ===================== PARALLAXE PHOTO ===================== */
 const skyPhoto = $('#skyPhoto');
 if(!reduceMotion){
@@ -440,19 +505,21 @@ function openThemePanel(theme){
   showPanel();
 }
 
-/* ===================== VUE : GRILLE AUTEURS ===================== */
-function openAuthorsPanel(filter='all'){
-  crossfadeInto(()=>{
-    const list = poets.filter(p => filter==='all' || p.lang===filter);
-    const cards = list.map(p => `
-      <div class="author-card" data-poet="${p.id}">
-        <span class="tag ${p.lang}">${p.lang==='fr' ? 'France' : 'Grande-Bretagne'}</span>
-        <h3>${p.name}</h3>
-        <div class="dates">${p.born ?? '?'} – ${p.died ?? '?'}</div>
-        <p>${p.bio}</p>
-      </div>`).join('');
+/* ===================== VUE : GRILLE AUTEURS (section inline) ===================== */
+function renderAuthorsSection(filter='all'){
+  const section = $('#authorsSection');
+  if(!section) return;
+  const list = poets.filter(p => filter==='all' || p.lang===filter);
+  const cards = list.map(p => `
+    <div class="author-card" data-poet="${p.id}">
+      <span class="tag ${p.lang}">${p.lang==='fr' ? 'France' : 'Grande-Bretagne'}</span>
+      <h3>${p.name}</h3>
+      <div class="dates">${p.born ?? '?'} – ${p.died ?? '?'}</div>
+      <p>${p.bio}</p>
+    </div>`).join('');
 
-    panelBody.innerHTML = `
+  section.innerHTML = `
+    <div class="inner">
       <div class="panel-eyebrow">Constellation complète</div>
       <h2>Tous les auteurs</h2>
       <p class="gloss">Le corpus DREAM rassemble ${poets.length} auteurs et autrices romantiques, ${poets.filter(p=>p.lang==='fr').length} côté français et ${poets.filter(p=>p.lang==='en').length} côté britannique. Clique une carte pour lire sa biographie complète et consulter ou laisser un avis.</p>
@@ -462,19 +529,90 @@ function openAuthorsPanel(filter='all'){
         <button class="filter-chip ${filter==='en'?'active':''}" data-filter="en">Grande-Bretagne</button>
       </div>
       <div class="authors-grid">${cards}</div>
-    `;
+    </div>
+  `;
 
-    $$('.filter-chip').forEach(chip=>{
-      chip.addEventListener('click', ()=> openAuthorsPanel(chip.dataset.filter));
-    });
-    $$('.author-card').forEach(card=>{
-      attachTilt(card);
-      card.addEventListener('click', ()=> openAuthorPanel(card.dataset.poet));
-    });
-    staggerReveal(panelBody, '.author-card', 40);
+  $$('#authorsSection .filter-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> renderAuthorsSection(chip.dataset.filter));
   });
-  showPanel();
+  $$('#authorsSection .author-card').forEach(card=>{
+    attachTilt(card);
+    card.addEventListener('click', ()=> openAuthorPanel(card.dataset.poet));
+  });
+  staggerReveal(section, '.author-card', 40);
 }
+renderAuthorsSection('all');
+
+/* ===================== SON : swoosh de clic (synthétisé) ===================== */
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    audioCtx = new Ctx();
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playSwoosh(){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  try{
+    const dur = 0.26;
+    const bufferSize = Math.floor(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0; i<bufferSize; i++){ data[i] = Math.random()*2 - 1; }
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 0.85;
+    filter.frequency.setValueAtTime(2000, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(350, ctx.currentTime + dur);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    noise.start();
+    noise.stop(ctx.currentTime + dur);
+  }catch(err){ /* pas grave si l'audio échoue, on continue sans son */ }
+}
+document.addEventListener('click', (e)=>{
+  const target = e.target.closest(
+    '.pill-btn, .filter-chip, .theme-star, .author-card, .panel-close, .poem-head, .fn-marker, .star-picker button'
+  );
+  if(target) playSwoosh();
+});
+
+/* ===================== SON D'AMBIANCE : chants d'oiseaux ===================== */
+const ambientAudio = $('#ambientAudio');
+const soundToggle = $('#soundToggle');
+if(ambientAudio && soundToggle){
+  ambientAudio.volume = 0.32;
+  soundToggle.addEventListener('click', ()=>{
+    if(ambientAudio.paused){
+      ambientAudio.play().catch(()=>{});
+      soundToggle.classList.add('playing');
+      soundToggle.setAttribute('aria-pressed', 'true');
+    } else {
+      ambientAudio.pause();
+      soundToggle.classList.remove('playing');
+      soundToggle.setAttribute('aria-pressed', 'false');
+    }
+  });
+}
+
+const dividerSpark = $('#dividerSpark');
+if(dividerSpark) revealObserver.observe(dividerSpark);
 
 /* ===================== ŒUVRES : poème + commentaire dans .who ===================== */
 function renderWorksHTML(poet){
@@ -650,4 +788,6 @@ async function submitReviewToServer(poetId, review){
 }
 
 /* ===================== NAVIGATION ===================== */
-$('#navAuthors').addEventListener('click', ()=> openAuthorsPanel('all'));
+$('#navAuthors').addEventListener('click', ()=>{
+  $('#authorsSection').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block:'start' });
+});
