@@ -259,7 +259,7 @@ button{ font-family:inherit; }
 
 .panel{
   position:fixed; left:0; right:0; bottom:0; z-index:11;
-  height:86vh; max-height:920px;
+  height:90vh;
   background:var(--panel-bg);
   border-top:1px solid var(--line);
   border-radius:20px 20px 0 0;
